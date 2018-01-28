@@ -3,9 +3,16 @@ canvas { background: #ddd; }
 #canvas_container{
     text-align: center;
     width:100%;
+    overflow-wrap:normal;
 }
 
 #gameCanvas {
     margin-left: auto;
     margin-right: auto;
+}
+
+#game_title{
+    text-align: center;
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
