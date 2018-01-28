@@ -34,6 +34,12 @@ document.addEventListener("DOMContentLoaded",function(){
         touch: 1,
         mouse: 2
     }
+    const keyDirections = {
+        up:38,
+        down:40,
+        left:37,
+        right:39
+    }
     var cursor ={
         x1: 0,
         y1: 0,
@@ -43,9 +49,12 @@ document.addEventListener("DOMContentLoaded",function(){
         colPos: 2,
         size:block_size,
         color:"#fff",
-        mode:controlModes.keys
+        mode:controlModes.keys,
+        direction:null
     }
-    window.addEventListener("resize",onResize);
+    window.addEventListener("resize",onResize, false);
+    document.addEventListener("keydown",keyDownHandler,false);
+    document.addEventListener("keyup", keyUpHandler, false);
         
         
 /*** Game Execution ***/
@@ -116,6 +125,18 @@ document.addEventListener("DOMContentLoaded",function(){
         context.closePath();
     }  
 
+    function moveCursor(){
+
+    }
+
+    function moveCursorLeft(){
+
+    }
+
+    function moveCursorRight(){
+
+    }
+
 /*** Utility Functions ***/
     function calculateDisplayDimensions() {
         // Every element size should be based on these two variables
@@ -125,8 +146,8 @@ document.addEventListener("DOMContentLoaded",function(){
         canvas.width = g_height * .5;
         block_border = canvas.height * .005;
         block_size = canvas.height / max_rows - block_border;
-        Log("block_border: " + block_border, priority.D);
-        Log("block_size: " + block_size, priority.D);
+        Log("block_border: " + block_border);
+        Log("block_size: " + block_size);
     }
 
     function onResize() {
@@ -138,8 +159,20 @@ document.addEventListener("DOMContentLoaded",function(){
         draw();
     }
 
+    function keyDownHandler(e){
+        if(Object.values(keyDirections).indexOf(e.keyCode)>-1 && cursor.direction) return;
+        cursor.direction = e.keyCode;
+        Log("Moving cursor to: "+cursor.direction);
+        moveCursor();
+    }
+
+    function keyUpHandler(e){
+        if (Object.values(keyDirections).indexOf(e.keyCode) > -1)
+            cursor.direction = null;
+    }
+
     function Log(message, pri=priority.D){
         if(pri === priority.D && debugMode === false) return;
         window.console.log(message);
     }
-})
+});
