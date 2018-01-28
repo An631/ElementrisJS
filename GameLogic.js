@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded",function(){
         left:37,
         right:39
     }
+    const keyActions ={}
     var cursor ={
         x1: 0,
         y1: 0,
@@ -53,8 +54,10 @@ document.addEventListener("DOMContentLoaded",function(){
         direction:null
     }
     window.addEventListener("resize",onResize, false);
-    document.addEventListener("keydown",keyDownHandler,false);
-    document.addEventListener("keyup", keyUpHandler, false);
+    if(cursor.mode === controlModes.keys){
+        document.addEventListener("keydown",keyDownHandler,false);
+        document.addEventListener("keyup", keyUpHandler, false);
+    }
         
         
 /*** Game Execution ***/
@@ -109,7 +112,7 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function clearCursor(){
-        // Clear the previous cursor and redraw the containing blocks
+        // Clear the cursor and redraw the containing blocks
         context.clearRect(cursor.x1-2, cursor.y1-2, cursor.size+4, cursor.size+4);
         context.clearRect(cursor.x2-2, cursor.y2-2, cursor.size+4, cursor.size+4);
         drawBlocks(cursor.rowPos, cursor.rowPos + 1, cursor.colPos, cursor.colPos + 2);
@@ -131,7 +134,7 @@ document.addEventListener("DOMContentLoaded",function(){
         context.beginPath();
             context.strokeRect(cursor.x2, cursor.y2, cursor.size, cursor.size);
         context.closePath();
-    }  
+    }
 
 /*** Movement Functions ***/
     function moveCursor(){
@@ -155,6 +158,7 @@ document.addEventListener("DOMContentLoaded",function(){
             break;
         }
         drawCursor();
+        cursor.direction = null;
     }
 
     function moveCursorLeft(){
@@ -204,14 +208,19 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function keyDownHandler(e){
-        if(Object.values(keyDirections).indexOf(e.keyCode)>-1 && cursor.direction) return;
-        cursor.direction = e.keyCode;
-        moveCursor();
+        if(Object.values(keyDirections).indexOf(e.keyCode) > -1 && cursor.direction) return;
+        else if (Object.values(keyDirections).indexOf(e.keyCode) > -1){
+            cursor.direction = e.keyCode;
+            Log("found it in the keydirections"+e.keyCode);
+            moveCursor();
+        }
+
     }
 
     function keyUpHandler(e){
         if (Object.values(keyDirections).indexOf(e.keyCode) > -1)
             cursor.direction = null;
+        
     }
 
     function Log(message, pri=priority.D){
