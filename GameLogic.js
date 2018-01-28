@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded",function(){
         y1: 0,
         x2: 0,
         y2: 0,
-        rowPos: 5,
+        rowPos: 6,
         colPos: 2,
         size:block_size,
         color:"#fff",
@@ -92,9 +92,9 @@ document.addEventListener("DOMContentLoaded",function(){
         drawCursor();
     }
     
-    function drawBlocks() {
-        for(var row = 0; row < max_rows; row++){
-            for(var col = 0; col < max_cols; col++){
+    function drawBlocks(rowStart=0, rowEnd=max_rows, colStart=0, colEnd=max_cols) {
+        for(var row = rowStart; row < rowEnd; row++){
+            for(var col = colStart; col < colEnd; col++){
                 if(!blocks[row][col].exists) continue;
                 var blockX = blocks[row][col].x;
                 var blockY = blocks[row][col].y;
@@ -108,8 +108,16 @@ document.addEventListener("DOMContentLoaded",function(){
         }
     }
 
+    function clearCursor(){
+        // Clear the previous cursor and redraw the containing blocks
+        context.clearRect(cursor.x1-2, cursor.y1-2, cursor.size+4, cursor.size+4);
+        context.clearRect(cursor.x2-2, cursor.y2-2, cursor.size+4, cursor.size+4);
+        drawBlocks(cursor.rowPos, cursor.rowPos + 1, cursor.colPos, cursor.colPos + 2);
+    }
+
     function drawCursor() {
         if(cursor.mode !== controlModes.keys) return;
+        // Set new position of cursor
         cursor.x1 = blocks[cursor.rowPos][cursor.colPos].x;
         cursor.y1 = blocks[cursor.rowPos][cursor.colPos].y;
         cursor.x2 = blocks[cursor.rowPos][cursor.colPos+1].x;
@@ -125,16 +133,52 @@ document.addEventListener("DOMContentLoaded",function(){
         context.closePath();
     }  
 
+/*** Movement Functions ***/
     function moveCursor(){
-
+        if(!cursor.direction){
+            Log("cursor direction not set: "+ cursor.direction,priority.P); 
+            return;
+        }
+        clearCursor();
+        switch(cursor.direction){
+            case keyDirections.left:
+                moveCursorLeft();
+            break;
+            case keyDirections.right:
+                moveCursorRight();
+            break;
+            case keyDirections.up:
+                moveCursorUp();
+            break;
+            case keyDirections.down:
+                moveCursorDown();
+            break;
+        }
+        drawCursor();
     }
 
     function moveCursorLeft(){
-
+        Log("Moving cursor to: " + cursor.direction);
+        if(cursor.colPos>0)
+            cursor.colPos--;
     }
 
     function moveCursorRight(){
+        Log("Moving cursor to: " + cursor.direction);
+        if (cursor.colPos < max_cols-2)
+            cursor.colPos++;
+    }
 
+    function moveCursorUp(){
+        Log("Moving cursor to: " + cursor.direction);
+        if(cursor.rowPos > 0)
+            cursor.rowPos--;
+    }
+
+    function moveCursorDown(){
+        Log("Moving cursor to: " + cursor.direction);
+        if(cursor.rowPos < max_rows-1)
+            cursor.rowPos++;
     }
 
 /*** Utility Functions ***/
@@ -162,7 +206,6 @@ document.addEventListener("DOMContentLoaded",function(){
     function keyDownHandler(e){
         if(Object.values(keyDirections).indexOf(e.keyCode)>-1 && cursor.direction) return;
         cursor.direction = e.keyCode;
-        Log("Moving cursor to: "+cursor.direction);
         moveCursor();
     }
 
