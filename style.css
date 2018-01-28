@@ -1,0 +1,11 @@
+canvas { background: #eee; }
+
+#canvas_container{
+    text-align: center;
+    width:100%;
+}
+
+#gameCanvas {
+    margin-left: auto;
+    margin-right: auto;
+}
