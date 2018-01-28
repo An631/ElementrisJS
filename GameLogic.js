@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded",function(){
     const max_rows = 12;
     const max_cols = 6;
     const colors = {
+        0:null,
         1:"#00f",
         2:"#f00",
         3:"#0f0",
@@ -28,8 +29,24 @@ document.addEventListener("DOMContentLoaded",function(){
     var blocks = [];
     calculateDisplayDimensions();
     initializeBlocks();
+    const controlModes = {
+        keys: 0,
+        touch: 1,
+        mouse: 2
+    }
+    var cursor ={
+        x1: 0,
+        y1: 0,
+        x2: 0,
+        y2: 0,
+        rowPos: 5,
+        colPos: 2,
+        size:block_size,
+        color:"#fff",
+        mode:controlModes.keys
+    }
     window.addEventListener("resize",onResize);
-
+        
         
 /*** Game Execution ***/
     draw();
@@ -42,34 +59,28 @@ document.addEventListener("DOMContentLoaded",function(){
         var randomTemplate = Math.floor(Math.random()*2);
         Log("Chose template #: "+randomTemplate);
         blocks = templates[randomTemplate];
-        for (var row = 0; row < max_rows; row++) {
-            for (var col = 0; col < max_cols; col++) {
-                if (!blocks[row][col].exists) continue;
-                var blockX = col * (block_size + block_border);
-                var blockY = row * (block_size + block_border);
-                var clr = Math.floor(Math.random() * max_cols + 1);
-                blocks[row][col].x = blockX;
-                blocks[row][col].y = blockY;
-                blocks[row][col].color = clr;
-            }
-        }
+        updateBlocksPositions();
     }
 
     function updateBlocksPositions(){
         for (var row = 0; row < max_rows; row++) {
             for (var col = 0; col < max_cols; col++) {
-                if (!blocks[row][col].exists) continue;
                 var blockX = col * (block_size + block_border);
                 var blockY = row * (block_size + block_border);
                 blocks[row][col].x = blockX;
                 blocks[row][col].y = blockY;
+                if (!blocks[row][col].exists) continue;
+                if (blocks[row][col].color) continue;
+                var clr = Math.floor(Math.random() * max_cols + 1);
+                blocks[row][col].color = clr;
             }
         }
     }
 
     function draw() {
         context.clearRect(0, 0, canvas.width, canvas.height);
-        drawBlocks();  
+        drawBlocks(); 
+        drawCursor();
     }
     
     function drawBlocks() {
@@ -79,14 +90,30 @@ document.addEventListener("DOMContentLoaded",function(){
                 var blockX = blocks[row][col].x;
                 var blockY = blocks[row][col].y;
                 var clr = blocks[row][col].color;
-
                 context.beginPath();
-                context.rect(blockX, blockY, block_size, block_size);
-                context.fillStyle = colors[clr];
-                context.fill();
+                    context.rect(blockX, blockY, block_size, block_size);
+                    context.fillStyle = colors[clr];
+                    context.fill();
                 context.closePath();
             }
         }
+    }
+
+    function drawCursor() {
+        if(cursor.mode !== controlModes.keys) return;
+        cursor.x1 = blocks[cursor.rowPos][cursor.colPos].x;
+        cursor.y1 = blocks[cursor.rowPos][cursor.colPos].y;
+        cursor.x2 = blocks[cursor.rowPos][cursor.colPos+1].x;
+        cursor.y2 = blocks[cursor.rowPos][cursor.colPos+1].y;
+        cursor.size = block_size;
+        context.strokeStyle = cursor.color;
+        context.lineWidth = 3;
+        context.beginPath();
+            context.strokeRect(cursor.x1, cursor.y1, cursor.size, cursor.size);
+        context.closePath();
+        context.beginPath();
+            context.strokeRect(cursor.x2, cursor.y2, cursor.size, cursor.size);
+        context.closePath();
     }  
 
 /*** Utility Functions ***/
