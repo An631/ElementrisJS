@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded",function(){
     var block_size;
     const max_rows = 12;
     const max_cols = 6;
+    const fall_delay = 15;
     const colors = {
         0:null,
         1:"#00f",
@@ -27,8 +28,6 @@ document.addEventListener("DOMContentLoaded",function(){
         5:"#f0f",
         6:"#ff0"}
     var blocks = [];
-    calculateDisplayDimensions();
-    initializeBlocks();
     const controlModes = {
         keys: 0,
         touch: 1,
@@ -57,13 +56,15 @@ document.addEventListener("DOMContentLoaded",function(){
         swapping: false,
         direction:null
     }
+    
+/*** Game Execution ***/
+    calculateDisplayDimensions();
+    initializeBlocks();
     window.addEventListener("resize",onResize, false);
     if(cursor.mode === controlModes.keys){
         document.addEventListener("keydown",keyDownHandler,false);
         document.addEventListener("keyup", keyUpHandler, false);
     }
-        
-/*** Game Execution ***/
     run();
     
 /*** Game's Logic Functions ***/
@@ -82,17 +83,17 @@ document.addEventListener("DOMContentLoaded",function(){
                 var blockY = row * (block_size + block_border);
                 blocks[row][col].x = blockX;
                 blocks[row][col].y = blockY;
-                if (!blocks[row][col].exists) continue;
-                if (blocks[row][col].color) continue;
+                if (!blocks[row][col].properties.exists) continue;
+                if (blocks[row][col].properties.color) continue;
                 var clr = Math.floor(Math.random() * max_cols + 1);
-                blocks[row][col].color = clr;
+                blocks[row][col].properties.color = clr;
             }
         }
     }
 
     function run() {
         context.clearRect(0, 0, canvas.width, canvas.height);
-        fixFloatingBlocks();
+        applyGravity();
         drawBlocks();
         drawCursor();
         // Create a draw function loop using animation frames.
@@ -102,10 +103,18 @@ document.addEventListener("DOMContentLoaded",function(){
     function drawBlocks(rowStart=0, rowEnd=max_rows, colStart=0, colEnd=max_cols) {
         for(var row = rowStart; row < rowEnd; row++){
             for(var col = colStart; col < colEnd; col++){
-                if(!blocks[row][col].exists) continue;
-                var blockX = blocks[row][col].x;
-                var blockY = blocks[row][col].y;
-                var clr = blocks[row][col].color;
+                var block = blocks[row][col];
+                // First check for locked property because non-existant blocks can also be
+                // swap-locked and we need to decrease their counters too.
+                if (block.properties.locked > 0){
+                    Log("Locked: " + block.properties.locked);
+                    block.properties.locked--;
+                }
+                if (!block.properties.exists) continue;
+
+                var blockX = block.x;
+                var blockY = block.y;
+                var clr = block.properties.color;
                 context.beginPath();
                     context.rect(blockX, blockY, block_size, block_size);
                     context.fillStyle = colors[clr];
@@ -133,16 +142,29 @@ document.addEventListener("DOMContentLoaded",function(){
         context.closePath();
     }
 
-    function fixFloatingBlocks(){
+    function applyGravity(){
         for(var row = max_rows-2; row >= 0; row--){
             for(var col = 0; col < max_cols; col++){
-                //Log("Verifying existence: "+blocks[row][col].exists);
-                if(blocks[row][col].exists==false) continue;
-                if(blocks[row+1][col].exists === false){
-                    swap(row,col,row+1,col);
-                }
+                var blockProperties = blocks[row][col].properties;
+                if(!isFloating(row,col) || blockProperties.locked>0) continue;
+                swap(row,col,row+1,col);
             }
         }
+    }
+
+    function isFloating(row, col){
+        if(row >= max_rows-1){ return false;}
+        var block = blocks[row][col];
+        var blockBelow = blocks[row+1][col];
+        if(blockBelow.properties.exists) return false;
+        if(!block.properties.exists) return false;
+        return true;
+    }
+
+    function isAboveFloating(row,col){
+        if(row <= 0) return false;
+        Log("Checking floating: "+row+" "+col);
+        return isFloating(row-1,col);
     }
 
 /*** Movement Functions ***/
@@ -192,19 +214,42 @@ document.addEventListener("DOMContentLoaded",function(){
             cursor.rowPos++;
     }
 
-    function swap(blockRow,blockCol,swapWithRow=blockRow,swapWithCol=blockCol+1){
-        Log("Swapping: x:" + blockRow + " y:" + blockCol + " with x:" + swapWithRow + " y: " + swapWithCol);
-        Log("color block to swap: " + blocks[blockRow][blockCol].color);
-        Log("color block to swap with: " + blocks[swapWithRow][swapWithCol].color);
+    function swap(blockRow, blockCol, swapWithRow=blockRow, swapWithCol=blockCol+1){
+        var block = blocks[blockRow][blockCol];
+        var blockSwapWith = blocks[swapWithRow][swapWithCol];
+        if(!block.properties.exists && !blockSwapWith.properties.exists) return;
+        if(block.properties.locked > 0 || blockSwapWith.properties.locked > 0) return;
+        Log("Swapping: row:" + blockRow + " col:" + blockCol + " with row:" + swapWithRow + " col: " + swapWithCol);
+        Log("color block to swap: " + block.properties.color);
+        Log("color block to swap with: " + blockSwapWith.properties.color);
+        Log("exists block to swap: " + block.properties.exists);
+        Log("exists block to swap with: " + blockSwapWith.properties.exists);
         
-        // Swap colors
-        var tClr = blocks[blockRow][blockCol].color;
-        blocks[blockRow][blockCol].color = blocks[swapWithRow][swapWithCol].color;
-        blocks[swapWithRow][swapWithCol].color=tClr;
-        // Swap existence of block
-        var tExists = blocks[blockRow][blockCol].exists;
-        blocks[blockRow][blockCol].exists = blocks[swapWithRow][swapWithCol].exists;
-        blocks[swapWithRow][swapWithCol].exists = tExists;
+        // Swap blocks properties, postion remains the same
+        var tProperties = block.properties;
+        block.properties = blockSwapWith.properties;
+        blockSwapWith.properties = tProperties;
+    }
+
+    function verifySwap(row, col, secRow = row, secCol = col + 1){
+        var block = blocks[row][col];
+        var secBlock = blocks[secRow][secCol];
+        if (isFloating(row, col)
+            && block.properties.locked <= 0){
+                block.properties.locked = fall_delay;
+                blocks[row+1][col].properties.locked = fall_delay;
+        }
+        else if (isFloating(secRow, secCol)
+            && secBlock.properties.locked <= 0){
+                secBlock.properties.locked = fall_delay;
+                blocks[secRow + 1][secCol].properties.locked = fall_delay;
+        }
+        if (isAboveFloating(row, col)) {
+            blocks[row - 1][col].properties.locked = fall_delay;
+        }
+        else if (isAboveFloating(secRow, secCol)) {
+            blocks[secRow - 1][secCol].properties.locked = fall_delay;
+        }
     }
 
 /*** Utility Functions ***/
@@ -237,7 +282,10 @@ document.addEventListener("DOMContentLoaded",function(){
         }
         else if(!cursor.swapping && e.keyCode === keyActions.swap){
             cursor.swapping = true;
+            // Verify if block will be floating after swap
+            // Set a timer if the box ended in a floating position
             swap(cursor.rowPos,cursor.colPos);
+            verifySwap(cursor.rowPos, cursor.colPos);
         }
     }
 
