@@ -40,7 +40,10 @@ document.addEventListener("DOMContentLoaded",function(){
         left:37,
         right:39
     }
-    const keyActions ={}
+    const keyActions ={
+        swap:83,// key S
+        rise:32 // spacebar
+    }
     var cursor ={
         x1: 0,
         y1: 0,
@@ -51,6 +54,7 @@ document.addEventListener("DOMContentLoaded",function(){
         size:block_size,
         color:"#fff",
         mode:controlModes.keys,
+        swapping: false,
         direction:null
     }
     window.addEventListener("resize",onResize, false);
@@ -185,6 +189,23 @@ document.addEventListener("DOMContentLoaded",function(){
             cursor.rowPos++;
     }
 
+    function swap(blockRow,blockCol,swapWithRow=blockRow,swapWithCol=blockCol+1){
+        Log("Swapping: x:" + blockRow + " y:" + blockCol + " with x:" + swapWithRow + " y: " + swapWithCol);
+        Log("color block to swap: " + blocks[blockRow][blockCol].color);
+        Log("color block to swap with: " + blocks[swapWithRow][swapWithCol].color);
+        
+        // Swap colors
+        var tClr = blocks[blockRow][blockCol].color;
+        blocks[blockRow][blockCol].color = blocks[swapWithRow][swapWithCol].color;
+        blocks[swapWithRow][swapWithCol].color=tClr;
+        // Swap existence of block
+        var tExists = blocks[blockRow][blockCol].exists;
+        blocks[blockRow][blockCol].exists = blocks[swapWithRow][swapWithCol].exists;
+        blocks[swapWithRow][swapWithCol].exists = tExists;
+        clearCursor();
+        drawCursor();
+    }
+
 /*** Utility Functions ***/
     function calculateDisplayDimensions() {
         // Every element size should be based on these two variables
@@ -208,19 +229,23 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function keyDownHandler(e){
+        Log("pressed: "+e.keyCode);
         if(Object.values(keyDirections).indexOf(e.keyCode) > -1 && cursor.direction) return;
         else if (Object.values(keyDirections).indexOf(e.keyCode) > -1){
             cursor.direction = e.keyCode;
-            Log("found it in the keydirections"+e.keyCode);
             moveCursor();
         }
-
+        else if(!cursor.swapping && e.keyCode === keyActions.swap){
+            cursor.swapping = true;
+            swap(cursor.rowPos,cursor.colPos);
+        }
     }
 
     function keyUpHandler(e){
         if (Object.values(keyDirections).indexOf(e.keyCode) > -1)
             cursor.direction = null;
-        
+        else if (cursor.swapping && e.keyCode === keyActions.swap)
+            cursor.swapping = false;
     }
 
     function Log(message, pri=priority.D){
