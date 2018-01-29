@@ -63,11 +63,8 @@ document.addEventListener("DOMContentLoaded",function(){
         document.addEventListener("keyup", keyUpHandler, false);
     }
         
-        
 /*** Game Execution ***/
-    draw();
-    // Create a draw function loop using animation frames.
-    requestAnimationFrame(draw);
+    run();
     
 /*** Game's Logic Functions ***/
     function initializeBlocks() {
@@ -93,10 +90,13 @@ document.addEventListener("DOMContentLoaded",function(){
         }
     }
 
-    function draw() {
+    function run() {
         context.clearRect(0, 0, canvas.width, canvas.height);
-        drawBlocks(); 
+        fixFloatingBlocks();
+        drawBlocks();
         drawCursor();
+        // Create a draw function loop using animation frames.
+        requestAnimationFrame(run);
     }
     
     function drawBlocks(rowStart=0, rowEnd=max_rows, colStart=0, colEnd=max_cols) {
@@ -113,13 +113,6 @@ document.addEventListener("DOMContentLoaded",function(){
                 context.closePath();
             }
         }
-    }
-
-    function clearCursor(){
-        // Clear the cursor and redraw the containing blocks
-        context.clearRect(cursor.x1-2, cursor.y1-2, cursor.size+4, cursor.size+4);
-        context.clearRect(cursor.x2-2, cursor.y2-2, cursor.size+4, cursor.size+4);
-        drawBlocks(cursor.rowPos, cursor.rowPos + 1, cursor.colPos, cursor.colPos + 2);
     }
 
     function drawCursor() {
@@ -140,13 +133,24 @@ document.addEventListener("DOMContentLoaded",function(){
         context.closePath();
     }
 
+    function fixFloatingBlocks(){
+        for(var row = max_rows-2; row >= 0; row--){
+            for(var col = 0; col < max_cols; col++){
+                //Log("Verifying existence: "+blocks[row][col].exists);
+                if(blocks[row][col].exists==false) continue;
+                if(blocks[row+1][col].exists === false){
+                    swap(row,col,row+1,col);
+                }
+            }
+        }
+    }
+
 /*** Movement Functions ***/
     function moveCursor(){
         if(!cursor.direction){
             Log("cursor direction not set: "+ cursor.direction,priority.P); 
             return;
         }
-        clearCursor();
         switch(cursor.direction){
             case keyDirections.left:
                 moveCursorLeft();
@@ -161,7 +165,6 @@ document.addEventListener("DOMContentLoaded",function(){
                 moveCursorDown();
             break;
         }
-        drawCursor();
         cursor.direction = null;
     }
 
@@ -202,8 +205,6 @@ document.addEventListener("DOMContentLoaded",function(){
         var tExists = blocks[blockRow][blockCol].exists;
         blocks[blockRow][blockCol].exists = blocks[swapWithRow][swapWithCol].exists;
         blocks[swapWithRow][swapWithCol].exists = tExists;
-        clearCursor();
-        drawCursor();
     }
 
 /*** Utility Functions ***/
@@ -225,7 +226,6 @@ document.addEventListener("DOMContentLoaded",function(){
         Log("clientHeight: " + document.documentElement.clientHeight);
         calculateDisplayDimensions();
         updateBlocksPositions();
-        draw();
     }
 
     function keyDownHandler(e){
