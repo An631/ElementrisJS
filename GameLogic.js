@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded",function(){
     const max_rows = 12;
     const max_cols = 6;
     const fall_delay = 15;
+    const delete_delay=30;
     const colors = {
         0:null,
         1:"#00f",
@@ -104,13 +105,22 @@ document.addEventListener("DOMContentLoaded",function(){
         for(var row = rowStart; row < rowEnd; row++){
             for(var col = colStart; col < colEnd; col++){
                 var block = blocks[row][col];
+                
                 // First check for locked property because non-existant blocks can also be
                 // swap-locked and we need to decrease their counters too.
                 if (block.properties.locked > 0){
-                    Log("Locked: " + block.properties.locked);
                     block.properties.locked--;
+                    Log("locked: "+block.properties.locked);
                 }
+                
+                if (block.properties.delete > 0) {
+                    block.properties.delete--;
+                    if(block.properties.delete <= 0) 
+                        block.properties.exists = false;
+                }
+                
                 if (!block.properties.exists) continue;
+                
 
                 var blockX = block.x;
                 var blockY = block.y;
@@ -148,6 +158,7 @@ document.addEventListener("DOMContentLoaded",function(){
                 var blockProperties = blocks[row][col].properties;
                 if(!isFloating(row,col) || blockProperties.locked>0) continue;
                 swap(row,col,row+1,col);
+                isBlockColorMatching(row+1,col);
             }
         }
     }
@@ -165,6 +176,115 @@ document.addEventListener("DOMContentLoaded",function(){
         if(row <= 0) return false;
         Log("Checking floating: "+row+" "+col);
         return isFloating(row-1,col);
+    }
+
+    // Verifies if a block should fall because is floating. Sets the locked timer to "fall_delay" if true.
+    function shouldBlockFall(row, col) {
+        var block = blocks[row][col];
+        if(block.properties.locked > 0) return;
+        if (isFloating(row, col)) {
+            block.properties.locked = fall_delay;
+            blocks[row + 1][col].properties.locked = fall_delay;
+        }
+        if (isAboveFloating(row, col)) {
+            blocks[row - 1][col].properties.locked = fall_delay;
+            block.properties.locked = fall_delay;
+        }
+    }
+
+
+    function queueBlocksForDeletion(blocksList){
+        var lockedTimer = delete_delay * blocksList.length;
+        for(var i = 0; i < blocksList.length; i++){
+            var block = blocksList[i];
+            var row = block[0];
+            var col = block[1];
+            var deleteTimer = delete_delay*(i+1);
+            Log("Adding to deletion"+block[0]+" "+block[1]+" deleteTimer: "+deleteTimer);
+            blocks[row][col].properties.locked = lockedTimer;
+            blocks[row][col].properties.delete = deleteTimer;
+        }
+    }
+    
+    function isBlockColorMatching(row, col) {
+        var block = blocks[row][col];
+        if(!block.properties.exists) return;
+        var blocksList = [];
+        var current;
+
+        Log("Looking for matches vertically");
+        var matchesCount = 1;
+        // Investigate South of the block
+        var tRow = row+1;
+        while(tRow < max_rows){
+            current = blocks[tRow][col];
+            if(!current.properties.exists) break;
+            if(current.properties.locked > 0) return;
+            if(current.properties.color !== block.properties.color) break;
+            matchesCount++;
+            tRow++;
+        }
+
+        var bottomRow = row + matchesCount - 1;
+
+        // Investigate North of the block
+        tRow = row - 1;
+        while (tRow >= 0) {
+            current = blocks[tRow][col];
+            if (!current.properties.exists) break;
+            if (current.properties.locked > 0) return;
+            if (current.properties.color !== block.properties.color) break;
+            matchesCount++;
+            tRow--;
+        }
+
+        if(matchesCount > 2) {
+            var topRow = bottomRow - matchesCount + 1;
+            for(var i = bottomRow; i >= topRow; i--)
+            {
+                var blockToAdd = [i,col];
+                Log("blockToAdd "+blockToAdd);
+                blocksList.push(blockToAdd);
+            }
+        }
+
+        Log("Looking for matches Horizontally");
+        matchesCount = 1;
+        // Investigate East of the block
+        var tCol = col + 1;
+        while (tCol < max_cols) {
+            current = blocks[row][tCol];
+            if (!current.properties.exists) break;
+            if (current.properties.locked > 0) return;
+            if (current.properties.color !== block.properties.color) break;
+            matchesCount++;
+            tCol++;
+        }
+
+        var rightMost = col + matchesCount - 1;
+
+        // Investigate West of the block
+        tCol = col - 1;
+        while (tCol >= 0) {
+            current = blocks[row][tCol];
+            if (!current.properties.exists) break;
+            if (current.properties.locked > 0) return;
+            if (current.properties.color !== block.properties.color) break;
+            matchesCount++;
+            tCol--;
+        }
+
+        if (matchesCount > 2) {
+            var leftMost = rightMost - matchesCount + 1;
+            for (var i = leftMost; i <= rightMost; i++) {
+                var blockToAdd = [row, i];
+                Log("blockToAdd " + blockToAdd);
+                blocksList.push(blockToAdd);
+            }
+        }
+
+        if(blocksList.length > 0)
+            queueBlocksForDeletion(blocksList);
     }
 
 /*** Movement Functions ***/
@@ -219,37 +339,11 @@ document.addEventListener("DOMContentLoaded",function(){
         var blockSwapWith = blocks[swapWithRow][swapWithCol];
         if(!block.properties.exists && !blockSwapWith.properties.exists) return;
         if(block.properties.locked > 0 || blockSwapWith.properties.locked > 0) return;
-        Log("Swapping: row:" + blockRow + " col:" + blockCol + " with row:" + swapWithRow + " col: " + swapWithCol);
-        Log("color block to swap: " + block.properties.color);
-        Log("color block to swap with: " + blockSwapWith.properties.color);
-        Log("exists block to swap: " + block.properties.exists);
-        Log("exists block to swap with: " + blockSwapWith.properties.exists);
-        
-        // Swap blocks properties, postion remains the same
+
+        // Swap blocks properties, position remains the same
         var tProperties = block.properties;
         block.properties = blockSwapWith.properties;
         blockSwapWith.properties = tProperties;
-    }
-
-    function verifySwap(row, col, secRow = row, secCol = col + 1){
-        var block = blocks[row][col];
-        var secBlock = blocks[secRow][secCol];
-        if (isFloating(row, col)
-            && block.properties.locked <= 0){
-                block.properties.locked = fall_delay;
-                blocks[row+1][col].properties.locked = fall_delay;
-        }
-        else if (isFloating(secRow, secCol)
-            && secBlock.properties.locked <= 0){
-                secBlock.properties.locked = fall_delay;
-                blocks[secRow + 1][secCol].properties.locked = fall_delay;
-        }
-        if (isAboveFloating(row, col)) {
-            blocks[row - 1][col].properties.locked = fall_delay;
-        }
-        else if (isAboveFloating(secRow, secCol)) {
-            blocks[secRow - 1][secCol].properties.locked = fall_delay;
-        }
     }
 
 /*** Utility Functions ***/
@@ -285,7 +379,11 @@ document.addEventListener("DOMContentLoaded",function(){
             // Verify if block will be floating after swap
             // Set a timer if the box ended in a floating position
             swap(cursor.rowPos,cursor.colPos);
-            verifySwap(cursor.rowPos, cursor.colPos);
+            shouldBlockFall(cursor.rowPos, cursor.colPos);
+            shouldBlockFall(cursor.rowPos, cursor.colPos+1);
+            isBlockColorMatching(cursor.rowPos, cursor.colPos);
+            isBlockColorMatching(cursor.rowPos, cursor.colPos+1);
+            
         }
     }
 
