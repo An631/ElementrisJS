@@ -67,8 +67,16 @@ document.addEventListener("DOMContentLoaded",function(){
         document.addEventListener("keyup", keyUpHandler, false);
     }
     run();
-    
+
 /*** Game's Logic Functions ***/
+    function run() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        applyGravity();
+        drawBlocks();
+        drawCursor();
+        // Create a draw function loop using animation frames.
+        requestAnimationFrame(run);
+    }
     function initializeBlocks() {
         // Load a block template that contains 2d array with exists predefined.
         var randomTemplate = Math.floor(Math.random()*2);
@@ -91,15 +99,6 @@ document.addEventListener("DOMContentLoaded",function(){
             }
         }
     }
-
-    function run() {
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        applyGravity();
-        drawBlocks();
-        drawCursor();
-        // Create a draw function loop using animation frames.
-        requestAnimationFrame(run);
-    }
     
     function drawBlocks(rowStart=0, rowEnd=max_rows, colStart=0, colEnd=max_cols) {
         for(var row = rowStart; row < rowEnd; row++){
@@ -110,7 +109,6 @@ document.addEventListener("DOMContentLoaded",function(){
                 // swap-locked and we need to decrease their counters too.
                 if (block.properties.locked > 0){
                     block.properties.locked--;
-                    Log("locked: "+block.properties.locked);
                 }
                 
                 if (block.properties.delete > 0) {
@@ -158,7 +156,7 @@ document.addEventListener("DOMContentLoaded",function(){
                 var blockProperties = blocks[row][col].properties;
                 if(!isFloating(row,col) || blockProperties.locked>0) continue;
                 swap(row,col,row+1,col);
-                isBlockColorMatching(row+1,col);
+                //isBlockColorMatching(row+1,col);
             }
         }
     }
@@ -195,6 +193,12 @@ document.addEventListener("DOMContentLoaded",function(){
 
     function queueBlocksForDeletion(blocksList){
         var lockedTimer = delete_delay * blocksList.length;
+        // Sort the list so that the blocks dissapear from top left to bottom right.
+        blocksList.sort(
+            function (a,b){
+                return a[0]-b[0] || a[1]-b[1];
+            }
+        )
         for(var i = 0; i < blocksList.length; i++){
             var block = blocksList[i];
             var row = block[0];
@@ -219,7 +223,7 @@ document.addEventListener("DOMContentLoaded",function(){
         while(tRow < max_rows){
             current = blocks[tRow][col];
             if(!current.properties.exists) break;
-            if(current.properties.locked > 0) return;
+            if(current.properties.locked > 0) break;
             if(current.properties.color !== block.properties.color) break;
             matchesCount++;
             tRow++;
@@ -232,16 +236,18 @@ document.addEventListener("DOMContentLoaded",function(){
         while (tRow >= 0) {
             current = blocks[tRow][col];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) return;
+            if (current.properties.locked > 0) break;
             if (current.properties.color !== block.properties.color) break;
             matchesCount++;
             tRow--;
         }
-
+        
+        // Add all vertical blocks if they need deletion.
         if(matchesCount > 2) {
             var topRow = bottomRow - matchesCount + 1;
             for(var i = bottomRow; i >= topRow; i--)
             {
+                if(row === i) continue;
                 var blockToAdd = [i,col];
                 Log("blockToAdd "+blockToAdd);
                 blocksList.push(blockToAdd);
@@ -255,7 +261,7 @@ document.addEventListener("DOMContentLoaded",function(){
         while (tCol < max_cols) {
             current = blocks[row][tCol];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) return;
+            if (current.properties.locked > 0) break;
             if (current.properties.color !== block.properties.color) break;
             matchesCount++;
             tCol++;
@@ -274,17 +280,23 @@ document.addEventListener("DOMContentLoaded",function(){
             tCol--;
         }
 
+        // Add all horizontal blocks if they need deletion.
         if (matchesCount > 2) {
             var leftMost = rightMost - matchesCount + 1;
             for (var i = leftMost; i <= rightMost; i++) {
+                if(col === i) continue;
                 var blockToAdd = [row, i];
                 Log("blockToAdd " + blockToAdd);
                 blocksList.push(blockToAdd);
             }
         }
 
-        if(blocksList.length > 0)
+        if(blocksList.length > 0){
+            // Add the central block so that is only added once.
+            var blockToAdd = [row,col];
+            blocksList.push (blockToAdd);
             queueBlocksForDeletion(blocksList);
+        }
     }
 
 /*** Movement Functions ***/
