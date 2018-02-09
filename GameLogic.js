@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded",function(){
             tRow--;
         }
         
-        // Add all vertical blocks if they need deletion.
+        // Add all vertical blocks only if they need deletion.
         if(matchesCount > 2) {
             var topRow = bottomRow - matchesCount + 1;
             for(var i = bottomRow; i >= topRow; i--)
