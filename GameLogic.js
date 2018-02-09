@@ -27,7 +27,9 @@ document.addEventListener("DOMContentLoaded",function(){
         3:"#0f0",
         4:"#0ff",
         5:"#f0f",
-        6:"#ff0"}
+        6:"#ff0",
+        7:"#fff"
+    }
     var blocks = [];
     const controlModes = {
         keys: 0,
@@ -105,7 +107,7 @@ document.addEventListener("DOMContentLoaded",function(){
             for(var col = colStart; col < colEnd; col++){
                 var block = blocks[row][col];
                 
-                // First check for locked property because non-existant blocks can also be
+                // First check for locked property because non-existent blocks can also be
                 // swap-locked and we need to decrease their counters too.
                 if (block.properties.locked > 0){
                     block.properties.locked--;
@@ -172,7 +174,6 @@ document.addEventListener("DOMContentLoaded",function(){
 
     function isAboveFloating(row,col){
         if(row <= 0) return false;
-        Log("Checking floating: "+row+" "+col);
         return isFloating(row-1,col);
     }
 
@@ -193,6 +194,7 @@ document.addEventListener("DOMContentLoaded",function(){
 
     function queueBlocksForDeletion(blocksList){
         var lockedTimer = delete_delay * blocksList.length;
+
         // Sort the list so that the blocks dissapear from top left to bottom right.
         blocksList.sort(
             function (a,b){
@@ -207,12 +209,16 @@ document.addEventListener("DOMContentLoaded",function(){
             Log("Adding to deletion"+block[0]+" "+block[1]+" deleteTimer: "+deleteTimer);
             blocks[row][col].properties.locked = lockedTimer;
             blocks[row][col].properties.delete = deleteTimer;
+            blocks[row][col].properties.color = 7;
         }
     }
     
+    // Checks a block to see if it is matching colors with at least other 3 blocks
+    // Returns a list of horizontally and vertically color matching blocks.
     function isBlockColorMatching(row, col) {
         var block = blocks[row][col];
-        if(!block.properties.exists) return;
+        if(!block.properties.exists) return [];
+        if(isFloating(row,col)) return [];
         var blocksList = [];
         var current;
 
@@ -274,7 +280,7 @@ document.addEventListener("DOMContentLoaded",function(){
         while (tCol >= 0) {
             current = blocks[row][tCol];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) return;
+            if (current.properties.locked > 0) break;
             if (current.properties.color !== block.properties.color) break;
             matchesCount++;
             tCol--;
@@ -290,13 +296,14 @@ document.addEventListener("DOMContentLoaded",function(){
                 blocksList.push(blockToAdd);
             }
         }
-
+        Log("Checking blocklist.length:"+blocksList.length);
         if(blocksList.length > 0){
             // Add the central block so that is only added once.
             var blockToAdd = [row,col];
-            blocksList.push (blockToAdd);
-            queueBlocksForDeletion(blocksList);
+            blocksList.push(blockToAdd);
         }
+        
+        return blocksList;
     }
 
 /*** Movement Functions ***/
@@ -357,6 +364,19 @@ document.addEventListener("DOMContentLoaded",function(){
         block.properties = blockSwapWith.properties;
         blockSwapWith.properties = tProperties;
     }
+    
+    function cursorSwap() {
+        swap(cursor.rowPos, cursor.colPos);
+        shouldBlockFall(cursor.rowPos, cursor.colPos);
+        shouldBlockFall(cursor.rowPos, cursor.colPos + 1);
+       
+        var blocksList = [];
+        blocksList = blocksList.concat(isBlockColorMatching(cursor.rowPos, cursor.colPos),
+            isBlockColorMatching(cursor.rowPos, cursor.colPos+1));
+        
+        if(blocksList.length > 1)
+            queueBlocksForDeletion(blocksList);
+    }
 
 /*** Utility Functions ***/
     function calculateDisplayDimensions() {
@@ -388,14 +408,7 @@ document.addEventListener("DOMContentLoaded",function(){
         }
         else if(!cursor.swapping && e.keyCode === keyActions.swap){
             cursor.swapping = true;
-            // Verify if block will be floating after swap
-            // Set a timer if the box ended in a floating position
-            swap(cursor.rowPos,cursor.colPos);
-            shouldBlockFall(cursor.rowPos, cursor.colPos);
-            shouldBlockFall(cursor.rowPos, cursor.colPos+1);
-            isBlockColorMatching(cursor.rowPos, cursor.colPos);
-            isBlockColorMatching(cursor.rowPos, cursor.colPos+1);
-            
+            cursorSwap();            
         }
     }
 
