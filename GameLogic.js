@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded",function(){
     var block_size;
     const max_rows = 12;
     const max_cols = 6;
+    const blocks_to_match = 3;
     const fall_delay = 15;
     const delete_delay=30;
     const colors = {
@@ -31,6 +32,7 @@ document.addEventListener("DOMContentLoaded",function(){
         7:"#fff"
     }
     var blocks = [];
+    var chain_count = 0;
     const controlModes = {
         keys: 0,
         touch: 1,
@@ -76,9 +78,10 @@ document.addEventListener("DOMContentLoaded",function(){
         applyGravity();
         drawBlocks();
         drawCursor();
-        // Create a draw function loop using animation frames.
+        // Create a game loop using animation frames.
         requestAnimationFrame(run);
     }
+
     function initializeBlocks() {
         // Load a block template that contains 2d array with exists predefined.
         var randomTemplate = Math.floor(Math.random()*2);
@@ -157,8 +160,14 @@ document.addEventListener("DOMContentLoaded",function(){
             for(var col = 0; col < max_cols; col++){
                 var blockProperties = blocks[row][col].properties;
                 if(!isFloating(row,col) || blockProperties.locked>0) continue;
-                swap(row,col,row+1,col);
-                //isBlockColorMatching(row+1,col);
+                var successSwap = swap(row, col, row+1, col);
+                if(successSwap && !isFloating(row+1, col)){
+                    var matchingBlocks = isBlockColorMatching(row+1, col);
+                    if (matchingBlocks.length >= blocks_to_match){
+                        
+                        queueBlocksForDeletion(matchingBlocks);
+                    }
+                }
             }
         }
     }
@@ -214,7 +223,7 @@ document.addEventListener("DOMContentLoaded",function(){
     }
     
     // Checks a block to see if it is matching colors with at least other 3 blocks
-    // Returns a list of horizontally and vertically color matching blocks.
+    // Returns a list of horizontally and vertically color matching blocks or empty array if not enough matching blocks exist
     function isBlockColorMatching(row, col) {
         var block = blocks[row][col];
         if(!block.properties.exists) return [];
@@ -249,7 +258,7 @@ document.addEventListener("DOMContentLoaded",function(){
         }
         
         // Add all vertical blocks only if they need deletion.
-        if(matchesCount > 2) {
+        if(matchesCount >= blocks_to_match) {
             var topRow = bottomRow - matchesCount + 1;
             for(var i = bottomRow; i >= topRow; i--)
             {
@@ -287,7 +296,7 @@ document.addEventListener("DOMContentLoaded",function(){
         }
 
         // Add all horizontal blocks if they need deletion.
-        if (matchesCount > 2) {
+        if (matchesCount >= blocks_to_match) {
             var leftMost = rightMost - matchesCount + 1;
             for (var i = leftMost; i <= rightMost; i++) {
                 if(col === i) continue;
@@ -297,7 +306,8 @@ document.addEventListener("DOMContentLoaded",function(){
             }
         }
         Log("Checking blocklist.length:"+blocksList.length);
-        if(blocksList.length > 0){
+        // Remove one from blocks_to_match because we haven't added the central block to the list.
+        if (blocksList.length >= blocks_to_match-1){
             // Add the central block so that is only added once.
             var blockToAdd = [row,col];
             blocksList.push(blockToAdd);
@@ -353,28 +363,37 @@ document.addEventListener("DOMContentLoaded",function(){
             cursor.rowPos++;
     }
 
+    // Swaps the properties value of two blocks. The inherent x and y coordinates of the blocks stay the same.
+    // Returns true if the blocks were successfully swapped, false otherwise
     function swap(blockRow, blockCol, swapWithRow=blockRow, swapWithCol=blockCol+1){
         var block = blocks[blockRow][blockCol];
         var blockSwapWith = blocks[swapWithRow][swapWithCol];
-        if(!block.properties.exists && !blockSwapWith.properties.exists) return;
-        if(block.properties.locked > 0 || blockSwapWith.properties.locked > 0) return;
+        if(!block.properties.exists && !blockSwapWith.properties.exists) return false;
+        if(block.properties.locked > 0 || blockSwapWith.properties.locked > 0) return false;
 
         // Swap blocks properties, position remains the same
         var tProperties = block.properties;
         block.properties = blockSwapWith.properties;
         blockSwapWith.properties = tProperties;
+        return true;
     }
     
     function cursorSwap() {
-        swap(cursor.rowPos, cursor.colPos);
+        var successSwap = swap(cursor.rowPos, cursor.colPos);
+        if(!successSwap) {
+            console.log("swap succeeded? "+successSwap);
+            return;
+        }
+
+        console.log("swap was successful");
         shouldBlockFall(cursor.rowPos, cursor.colPos);
         shouldBlockFall(cursor.rowPos, cursor.colPos + 1);
        
         var blocksList = [];
         blocksList = blocksList.concat(isBlockColorMatching(cursor.rowPos, cursor.colPos),
-            isBlockColorMatching(cursor.rowPos, cursor.colPos+1));
+                                       isBlockColorMatching(cursor.rowPos, cursor.colPos+1));
         
-        if(blocksList.length > 1)
+        if (blocksList.length >= blocks_to_match)
             queueBlocksForDeletion(blocksList);
     }
 
