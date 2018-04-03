@@ -4,11 +4,17 @@
 */
 document.addEventListener("DOMContentLoaded",function(){    
     /*** Initialize code helper variables ***/
-    var debugMode = true;
-    const priority = {
-        D: 0,
-        P: 1
+    const debugModes = {
+        production: 0,
+        debug: 1,
+        verbose: 2
     }
+    const priority = {
+        P: 0,
+        D: 1,
+        V: 2
+    }
+    var debugMode = debugModes.verbose;
 
 /***Initialize Game***/
     var canvas = document.getElementById("game_canvas");
@@ -32,7 +38,6 @@ document.addEventListener("DOMContentLoaded",function(){
         7:"#fff"
     }
     var blocks = [];
-    var chain_count = 0;
     const controlModes = {
         keys: 0,
         touch: 1,
@@ -61,6 +66,7 @@ document.addEventListener("DOMContentLoaded",function(){
         swapping: false,
         direction:null
     }
+    var chainCount = 0;
     
 /*** Game Execution ***/
     calculateDisplayDimensions();
@@ -87,10 +93,10 @@ document.addEventListener("DOMContentLoaded",function(){
         var randomTemplate = Math.floor(Math.random()*2);
         Log("Chose template #: "+randomTemplate);
         blocks = templates[randomTemplate];
-        updateBlocksPositions();
+        updateBlocks();
     }
 
-    function updateBlocksPositions(){
+    function updateBlocks(){
         for (var row = 0; row < max_rows; row++) {
             for (var col = 0; col < max_cols; col++) {
                 var blockX = col * (block_size + block_border);
@@ -112,7 +118,7 @@ document.addEventListener("DOMContentLoaded",function(){
                 
                 // First check for locked property because non-existent blocks can also be
                 // swap-locked and we need to decrease their counters too.
-                if (block.properties.locked > 0){
+                if (isLocked(row,col)){
                     block.properties.locked--;
                 }
                 
@@ -123,7 +129,6 @@ document.addEventListener("DOMContentLoaded",function(){
                 }
                 
                 if (!block.properties.exists) continue;
-                
 
                 var blockX = block.x;
                 var blockY = block.y;
@@ -158,18 +163,30 @@ document.addEventListener("DOMContentLoaded",function(){
     function applyGravity(){
         for(var row = max_rows-2; row >= 0; row--){
             for(var col = 0; col < max_cols; col++){
-                var blockProperties = blocks[row][col].properties;
-                if(!isFloating(row,col) || blockProperties.locked>0) continue;
-                var successSwap = swap(row, col, row+1, col);
-                if(successSwap && !isFloating(row+1, col)){
+                if( ! isFloating(row,col) || isLocked(row,col)) continue;
+                var successFallSwap = swap(row, col, row+1, col);
+                // If after the swap the block is no longer floating, it has hit bottom.
+                if(successFallSwap && !isFloating(row+1, col)){
                     var matchingBlocks = isBlockColorMatching(row+1, col);
                     if (matchingBlocks.length >= blocks_to_match){
-                        
+                        chainCount++;
+                        Log("CHAIN: "+chainCount,priority.P);
                         queueBlocksForDeletion(matchingBlocks);
+                    } else {
+                        if(!areBlocksFloating()){
+                            Log("Reset chain.",priority.P);
+                            chainCount = 0;
+                        }
                     }
                 }
             }
         }
+    }
+
+    function isLocked(row, col){
+        var blockProperties = blocks[row][col].properties;
+        if (blockProperties.locked > 0) return true;
+        return false;
     }
 
     function isFloating(row, col){
@@ -189,7 +206,7 @@ document.addEventListener("DOMContentLoaded",function(){
     // Verifies if a block should fall because is floating. Sets the locked timer to "fall_delay" if true.
     function shouldBlockFall(row, col) {
         var block = blocks[row][col];
-        if(block.properties.locked > 0) return;
+        if(isLocked(row,col)) return;
         if (isFloating(row, col)) {
             block.properties.locked = fall_delay;
             blocks[row + 1][col].properties.locked = fall_delay;
@@ -200,6 +217,17 @@ document.addEventListener("DOMContentLoaded",function(){
         }
     }
 
+    // Looks for any block that is floating. 
+    // Returns true if at least one of all the exisiting blocks is floating.
+    // Returns false if all blocks are not floating.
+    function areBlocksFloating(){
+        for (var row = max_rows - 2; row >= 0; row--) {
+            for (var col = 0; col < max_cols; col++) {
+               if(isFloating(row,col)) return true;
+            }
+        }
+        return false;
+    }
 
     function queueBlocksForDeletion(blocksList){
         var lockedTimer = delete_delay * blocksList.length;
@@ -222,104 +250,107 @@ document.addEventListener("DOMContentLoaded",function(){
         }
     }
     
-    // Checks a block to see if it is matching colors with at least other 3 blocks
-    // Returns a list of horizontally and vertically color matching blocks or empty array if not enough matching blocks exist
-    function isBlockColorMatching(row, col) {
+    function getVerticalBlockMatches(row, col,){
         var block = blocks[row][col];
-        if(!block.properties.exists) return [];
-        if(isFloating(row,col)) return [];
-        var blocksList = [];
+        // Make sure this block is valid for matching it
+        if (!block.properties.exists) return [];
+        if (isFloating(row, col)) return [];
         var current;
-
-        Log("Looking for matches vertically");
-        var matchesCount = 1;
+        blocksList = [];
+        
         // Investigate South of the block
-        var tRow = row+1;
-        while(tRow < max_rows){
+        var tRow = row + 1;
+        while (tRow < max_rows) {
             current = blocks[tRow][col];
-            if(!current.properties.exists) break;
-            if(current.properties.locked > 0) break;
-            if(current.properties.color !== block.properties.color) break;
-            matchesCount++;
+            if (!current.properties.exists) break;
+            if (isLocked(tRow, col)) break;
+            if (current.properties.color !== block.properties.color) break;
+            blocksList.push([tRow,col]);
             tRow++;
         }
-
-        var bottomRow = row + matchesCount - 1;
 
         // Investigate North of the block
         tRow = row - 1;
         while (tRow >= 0) {
             current = blocks[tRow][col];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) break;
+            if (isLocked(tRow, col)) break;
             if (current.properties.color !== block.properties.color) break;
-            matchesCount++;
+            blocksList.push([tRow, col]);
             tRow--;
         }
         
-        // Add all vertical blocks only if they need deletion.
-        if(matchesCount >= blocks_to_match) {
-            var topRow = bottomRow - matchesCount + 1;
-            for(var i = bottomRow; i >= topRow; i--)
-            {
-                if(row === i) continue;
-                var blockToAdd = [i,col];
-                Log("blockToAdd "+blockToAdd);
-                blocksList.push(blockToAdd);
-            }
-        }
+        if (blocksList.length + 1 >= blocks_to_match)
+             return blocksList;
+        else
+            return [];
 
-        Log("Looking for matches Horizontally");
-        matchesCount = 1;
+    }
+
+    function getHorizontalBlockMatches(row, col){
+        var block = blocks[row][col];
+        // Make sure this block is valid for matching it
+        if (!block.properties.exists) return [];
+        if (isFloating(row, col)) return [];
+        var current;
+        blocksList = [];
+
         // Investigate East of the block
         var tCol = col + 1;
         while (tCol < max_cols) {
             current = blocks[row][tCol];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) break;
+            if (isLocked(row, tCol)) break;
             if (current.properties.color !== block.properties.color) break;
-            matchesCount++;
+            blocksList.push([row,tCol]);
             tCol++;
         }
-
-        var rightMost = col + matchesCount - 1;
 
         // Investigate West of the block
         tCol = col - 1;
         while (tCol >= 0) {
             current = blocks[row][tCol];
             if (!current.properties.exists) break;
-            if (current.properties.locked > 0) break;
+            if (isLocked(row, tCol)) break;
             if (current.properties.color !== block.properties.color) break;
-            matchesCount++;
+            blocksList.push([row,tCol]);
             tCol--;
         }
 
-        // Add all horizontal blocks if they need deletion.
-        if (matchesCount >= blocks_to_match) {
-            var leftMost = rightMost - matchesCount + 1;
-            for (var i = leftMost; i <= rightMost; i++) {
-                if(col === i) continue;
-                var blockToAdd = [row, i];
-                Log("blockToAdd " + blockToAdd);
-                blocksList.push(blockToAdd);
-            }
-        }
+        if(blocksList.length + 1 >= blocks_to_match)
+            return blocksList;
+        else   
+            return [];
+    }
+
+    // Checks a block to see if it has matching colors with adjacent blocks
+    // Returns the list of indexes for matching color blocks only if there are at least 
+    // "blocks_to_match" number of matching blocks.
+    function isBlockColorMatching(row, col) {
+        var block = blocks[row][col];
+        if(!block.properties.exists) return [];
+        if(isFloating(row,col)) return [];
+        var blocksList = [];
+
+        blocksList = blocksList.concat(getHorizontalBlockMatches(row, col),
+            getVerticalBlockMatches(row, col));
+
         Log("Checking blocklist.length:"+blocksList.length);
         // Remove one from blocks_to_match because we haven't added the central block to the list.
         if (blocksList.length >= blocks_to_match-1){
             // Add the central block so that is only added once.
             var blockToAdd = [row,col];
             blocksList.push(blockToAdd);
-        }
+            return blocksList;
+        } 
         
-        return blocksList;
+        return [];
     }
 
 /*** Movement Functions ***/
     function moveCursor(){
         if(!cursor.direction){
-            Log("cursor direction not set: "+ cursor.direction,priority.P); 
+            Log("cursor direction not set: " + cursor.direction, priority.P, priority.V); 
             return;
         }
         switch(cursor.direction){
@@ -340,25 +371,25 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function moveCursorLeft(){
-        Log("Moving cursor to: " + cursor.direction);
+        Log("Moving cursor to: " + cursor.direction, priority.V);
         if(cursor.colPos>0)
             cursor.colPos--;
     }
 
     function moveCursorRight(){
-        Log("Moving cursor to: " + cursor.direction);
+        Log("Moving cursor to: " + cursor.direction, priority.V);
         if (cursor.colPos < max_cols-2)
             cursor.colPos++;
     }
 
     function moveCursorUp(){
-        Log("Moving cursor to: " + cursor.direction);
+        Log("Moving cursor to: " + cursor.direction, priority.V);
         if(cursor.rowPos > 0)
             cursor.rowPos--;
     }
 
     function moveCursorDown(){
-        Log("Moving cursor to: " + cursor.direction);
+        Log("Moving cursor to: " + cursor.direction, priority.V);
         if(cursor.rowPos < max_rows-1)
             cursor.rowPos++;
     }
@@ -369,7 +400,7 @@ document.addEventListener("DOMContentLoaded",function(){
         var block = blocks[blockRow][blockCol];
         var blockSwapWith = blocks[swapWithRow][swapWithCol];
         if(!block.properties.exists && !blockSwapWith.properties.exists) return false;
-        if(block.properties.locked > 0 || blockSwapWith.properties.locked > 0) return false;
+        if(isLocked(blockRow,blockCol) || isLocked(swapWithRow,swapWithCol)) return false;
 
         // Swap blocks properties, position remains the same
         var tProperties = block.properties;
@@ -381,11 +412,11 @@ document.addEventListener("DOMContentLoaded",function(){
     function cursorSwap() {
         var successSwap = swap(cursor.rowPos, cursor.colPos);
         if(!successSwap) {
-            console.log("swap succeeded? "+successSwap);
+            Log("swap succeeded? " + successSwap, priority.V);
             return;
         }
 
-        console.log("swap was successful");
+        Log("swap was successful", priority.V);
         shouldBlockFall(cursor.rowPos, cursor.colPos);
         shouldBlockFall(cursor.rowPos, cursor.colPos + 1);
        
@@ -393,8 +424,9 @@ document.addEventListener("DOMContentLoaded",function(){
         blocksList = blocksList.concat(isBlockColorMatching(cursor.rowPos, cursor.colPos),
                                        isBlockColorMatching(cursor.rowPos, cursor.colPos+1));
         
-        if (blocksList.length >= blocks_to_match)
+        if (blocksList.length >= blocks_to_match){
             queueBlocksForDeletion(blocksList);
+        }
     }
 
 /*** Utility Functions ***/
@@ -415,11 +447,11 @@ document.addEventListener("DOMContentLoaded",function(){
         Log("window height: " + window.innerHeight);
         Log("clientHeight: " + document.documentElement.clientHeight);
         calculateDisplayDimensions();
-        updateBlocksPositions();
+        updateBlocks();
     }
 
     function keyDownHandler(e){
-        Log("pressed: "+e.keyCode);
+        Log("pressed: " + e.keyCode, priority.V);
         if(Object.values(keyDirections).indexOf(e.keyCode) > -1 && cursor.direction) return;
         else if (Object.values(keyDirections).indexOf(e.keyCode) > -1){
             cursor.direction = e.keyCode;
@@ -439,7 +471,10 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function Log(message, pri=priority.D){
-        if(pri === priority.D && debugMode === false) return;
+        if (debugMode === debugModes.production && pri > priority.P)
+            return;
+        else if (debugMode === debugModes.debug && pri > priority.D)
+            return;
         window.console.log(message);
     }
 });
