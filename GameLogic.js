@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded",function(){
         D: 1,
         V: 2
     }
-    var debugMode = debugModes.verbose;
+    var debugMode = debugModes.production;
 
 /***Initialize Game***/
     var canvas = document.getElementById("game_canvas");
@@ -96,6 +96,13 @@ document.addEventListener("DOMContentLoaded",function(){
         updateBlocks();
     }
 
+    function getBlock(row,col){
+        var block = blocks[row][col];
+        if(!block) return null;
+        if(!block.properties.exists) return null;
+        return block;
+    }
+
     function updateBlocks(){
         for (var row = 0; row < max_rows; row++) {
             for (var col = 0; col < max_cols; col++) {
@@ -105,8 +112,7 @@ document.addEventListener("DOMContentLoaded",function(){
                 blocks[row][col].y = blockY;
                 if (!blocks[row][col].properties.exists) continue;
                 if (blocks[row][col].properties.color) continue;
-                var clr = Math.floor(Math.random() * max_cols + 1);
-                blocks[row][col].properties.color = clr;
+                setValidRandomColorToBlock(row,col);
             }
         }
     }
@@ -335,7 +341,7 @@ document.addEventListener("DOMContentLoaded",function(){
         blocksList = blocksList.concat(getHorizontalBlockMatches(row, col),
             getVerticalBlockMatches(row, col));
 
-        Log("Checking blocklist.length:"+blocksList.length);
+        Log("Checking blocklist.length:"+blocksList.length, priority.D);
         // Remove one from blocks_to_match because we haven't added the central block to the list.
         if (blocksList.length >= blocks_to_match-1){
             // Add the central block so that is only added once.
@@ -345,6 +351,39 @@ document.addEventListener("DOMContentLoaded",function(){
         } 
         
         return [];
+    }
+
+    function setValidRandomColorToBlock(row,col){
+        var newClr = Math.floor(Math.random() * max_cols + 1);
+        blocks[row][col].properties.color = newClr;
+        var upBlock = null;
+        var leftBlock = null;
+
+        if(row > 0)
+            upBlock = getBlock(row-1,col); 
+        if(col > 0)
+            leftBlock = getBlock(row,col-1);
+        
+        Log("upBlock:",priority.V);
+        Log(upBlock, priority.V);
+        Log("leftBlock:", priority.V);
+        Log(leftBlock, priority.V);
+
+        var horizontalMatches = getHorizontalBlockMatches(row,col);
+        var verticalMatches = getVerticalBlockMatches(row, col);
+
+        if (horizontalMatches.length >= blocks_to_match - 1 || verticalMatches.length >= blocks_to_match - 1){
+            Log("Found 3 matching blocks when adding color: "+newClr+" in ["+row+","+col+"]");
+            while((leftBlock && newClr === leftBlock.properties.color) ||
+                (upBlock && newClr === upBlock.properties.color)){
+                newClr = Math.floor(Math.random() * max_cols + 1);
+                Log("Trying new color: "+newClr,priority.V);
+            }
+            
+            Log("Found valid color: "+newClr, priority.V);
+        }
+        blocks[row][col].properties.color = newClr;
+        return newClr;
     }
 
 /*** Movement Functions ***/
@@ -371,25 +410,25 @@ document.addEventListener("DOMContentLoaded",function(){
     }
 
     function moveCursorLeft(){
-        Log("Moving cursor to: " + cursor.direction, priority.V);
+        Log("Moving cursor: " + cursor.direction, priority.V);
         if(cursor.colPos>0)
             cursor.colPos--;
     }
 
     function moveCursorRight(){
-        Log("Moving cursor to: " + cursor.direction, priority.V);
+        Log("Moving cursor: " + cursor.direction, priority.V);
         if (cursor.colPos < max_cols-2)
             cursor.colPos++;
     }
 
     function moveCursorUp(){
-        Log("Moving cursor to: " + cursor.direction, priority.V);
+        Log("Moving cursor: " + cursor.direction, priority.V);
         if(cursor.rowPos > 0)
             cursor.rowPos--;
     }
 
     function moveCursorDown(){
-        Log("Moving cursor to: " + cursor.direction, priority.V);
+        Log("Moving cursor: " + cursor.direction, priority.V);
         if(cursor.rowPos < max_rows-1)
             cursor.rowPos++;
     }
@@ -397,6 +436,7 @@ document.addEventListener("DOMContentLoaded",function(){
     // Swaps the properties value of two blocks. The inherent x and y coordinates of the blocks stay the same.
     // Returns true if the blocks were successfully swapped, false otherwise
     function swap(blockRow, blockCol, swapWithRow=blockRow, swapWithCol=blockCol+1){
+        Log("Swapping: "+blockRow+","+blockCol+" and "+swapWithRow+","+swapWithCol,priority.V);
         var block = blocks[blockRow][blockCol];
         var blockSwapWith = blocks[swapWithRow][swapWithCol];
         if(!block.properties.exists && !blockSwapWith.properties.exists) return false;
